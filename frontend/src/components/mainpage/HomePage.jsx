@@ -1,13 +1,17 @@
-import Navbar from "./Navbar";
+// src/components/mainpage/HomePage.jsx
+import React from "react";
+import { Box, Container } from "@mui/material";
 import ShopsPage from "./Shops";
 import HeroSection from "./Hero";
-import CategoriesPage from "./CategoriesPage";
+
 function HomePage() {
   return (
-    <>
+    <Box sx={{ bgcolor: "#f7f9fc" }}>
       <HeroSection />
-      <ShopsPage />
-    </>
+      <Container sx={{ py: 4 }}>
+        <ShopsPage />
+      </Container>
+    </Box>
   );
 }
 

@@ -1,4 +1,4 @@
-// src/components/mainpage/ShopDetails.jsx
+// src/components/shops/ShopDetails.jsx
 import React, { useContext, useEffect, useState } from "react";
 import axios from "axios";
 import {
@@ -13,11 +13,11 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
+  Grid,
+  CardMedia,
 } from "@mui/material";
-import { Grid } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
-
 import AuthContext from "../../context/AuthContext";
 
 function readLocalCart() {
@@ -106,7 +106,6 @@ export default function ShopDetails({ shopId }) {
         itemId: item._id,
         name: item.name,
         shopId: item.shop,
-        shopName: item.shopName || undefined,
         price:
           item.price?.perPiece ??
           item.price?.perUnit ??
@@ -132,9 +131,9 @@ export default function ShopDetails({ shopId }) {
   };
 
   return (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        Items
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom fontWeight="bold">
+        Available Items
       </Typography>
 
       {loading ? (
@@ -142,22 +141,43 @@ export default function ShopDetails({ shopId }) {
           <CircularProgress />
         </Box>
       ) : items.length === 0 ? (
-        <Typography>No items available.</Typography>
+        <Typography>No items available in this shop yet.</Typography>
       ) : (
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           {items.map((it) => (
-            <Grid key={it._id} xs={12} sm={6} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle1">{it.name}</Typography>
+            <Grid item key={it._id} xs={12} sm={6} md={4}>
+              <Card
+                sx={{
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  borderRadius: "12px",
+                  boxShadow: 3,
+                }}
+              >
+                <CardMedia
+                  component="img"
+                  height="160"
+                  image={
+                    it.imageUrl ||
+                    "https://via.placeholder.com/300x160.png/f0f0f0/333333?text=Item+Image"
+                  }
+                  alt={it.name}
+                />
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography variant="h6" component="div" fontWeight="medium">
+                    {it.name}
+                  </Typography>
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    sx={{ mb: 1 }}
+                    sx={{ mt: 1 }}
                   >
                     {it.description}
                   </Typography>
+                </CardContent>
 
+                <CardActions sx={{ p: 2, mt: "auto" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <IconButton
                       size="small"
@@ -166,20 +186,15 @@ export default function ShopDetails({ shopId }) {
                     >
                       <RemoveIcon fontSize="small" />
                     </IconButton>
-
                     <TextField
                       value={qtyMap[it._id] || 1}
                       onChange={(e) => setQty(it._id, e.target.value)}
                       size="small"
                       inputProps={{
-                        inputMode: "numeric",
-                        pattern: "[0-9]*",
-                        style: { textAlign: "center" },
+                        style: { textAlign: "center", width: "20px" },
                       }}
-                      sx={{ width: 72 }}
                       disabled={busyId === it._id}
                     />
-
                     <IconButton
                       size="small"
                       onClick={() => changeQty(it._id, 1)}
@@ -187,26 +202,26 @@ export default function ShopDetails({ shopId }) {
                     >
                       <AddIcon fontSize="small" />
                     </IconButton>
-
-                    <Box sx={{ flexGrow: 1 }} />
-                    <Typography sx={{ mr: 1 }}>
-                      ₹
-                      {it.price?.perPiece ??
-                        it.price?.perUnit ??
-                        it.price?.per100gm ??
-                        "—"}
-                    </Typography>
                   </Box>
-                </CardContent>
-
-                <CardActions>
+                  <Box sx={{ flexGrow: 1 }} />
                   <Button
                     size="small"
                     variant="contained"
                     onClick={() => handleAddToCart(it)}
                     disabled={busyId === it._id}
+                    sx={{
+                      bgcolor: "#2E7D32",
+                      "&:hover": { bgcolor: "#1B5E20" },
+                    }}
                   >
-                    {busyId === it._id ? "Adding..." : "Add to cart"}
+                    {busyId === it._id
+                      ? "Adding..."
+                      : `Add for ₹${
+                          it.price?.perPiece ??
+                          it.price?.perUnit ??
+                          it.price?.per100gm ??
+                          "—"
+                        }`}
                   </Button>
                 </CardActions>
               </Card>

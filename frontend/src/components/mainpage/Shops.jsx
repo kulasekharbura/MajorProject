@@ -1,3 +1,4 @@
+// src/components/mainpage/Shops.jsx
 import React, { useContext } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -9,6 +10,8 @@ import {
   CircularProgress,
   CardMedia,
   CardActionArea,
+  Box,
+  Paper,
 } from "@mui/material";
 import LocationContext from "../../context/LocationContext";
 
@@ -20,7 +23,6 @@ export default function ShopsPage() {
   const [searchParams] = useSearchParams();
   const paramLocation = searchParams.get("location") || "";
 
-  // effectiveLocation: prefer context, then query param, then localStorage
   const effectiveLocation =
     ctxLocation || paramLocation || localStorage.getItem("location") || "";
 
@@ -28,7 +30,6 @@ export default function ShopsPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
 
-  // sync context if a query param is present but context is empty/different
   React.useEffect(() => {
     if (paramLocation && ctxLocation !== paramLocation) {
       setCtxLocation(paramLocation);
@@ -70,35 +71,42 @@ export default function ShopsPage() {
   }, [effectiveLocation]);
 
   const handleOpenShop = (shopId) => {
-    // keep location in URL so the details page can know current city
     const qs = effectiveLocation
       ? `?location=${encodeURIComponent(effectiveLocation)}`
       : "";
     navigate(`/shop/${shopId}${qs}`);
   };
 
-  if (!effectiveLocation) return <div>Please select a location first.</div>;
+  if (!effectiveLocation)
+    return <Typography>Please select a location first.</Typography>;
   if (loading)
     return (
-      <div style={{ textAlign: "center" }}>
+      <Box sx={{ textAlign: "center" }}>
         <CircularProgress />
-      </div>
+      </Box>
     );
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
+  if (error) return <Typography color="error">{error}</Typography>;
 
   return (
-    <div>
-      <Typography variant="h5" gutterBottom>
+    <Paper elevation={2} sx={{ p: { xs: 2, md: 4 }, borderRadius: "12px" }}>
+      <Typography variant="h4" component="h2" gutterBottom fontWeight="bold">
         Shops in {effectiveLocation}
       </Typography>
 
       {shops.length === 0 ? (
         <Typography>No shops found in this location.</Typography>
       ) : (
-        <Grid container spacing={2} columns={12}>
+        <Grid container spacing={3}>
           {shops.map((shop) => (
-            <Grid key={shop._id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card sx={{ height: "100%" }}>
+            <Grid item key={shop._id} xs={12} sm={6} md={4}>
+              <Card
+                sx={{
+                  height: "100%",
+                  borderRadius: "12px",
+                  transition: "transform 0.2s",
+                  "&:hover": { transform: "scale(1.03)" },
+                }}
+              >
                 <CardActionArea onClick={() => handleOpenShop(shop._id)}>
                   {shop.imageUrl && (
                     <CardMedia
@@ -109,11 +117,22 @@ export default function ShopsPage() {
                     />
                   )}
                   <CardContent>
-                    <Typography variant="h6">{shop.name}</Typography>
+                    <Typography
+                      variant="h6"
+                      component="div"
+                      fontWeight="medium"
+                    >
+                      {shop.name}
+                    </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {shop.category}
                     </Typography>
-                    <Typography variant="caption" display="block">
+                    <Typography
+                      variant="caption"
+                      display="block"
+                      color="text.secondary"
+                      mt={1}
+                    >
                       {shop.locationName}
                     </Typography>
                   </CardContent>
@@ -123,6 +142,6 @@ export default function ShopsPage() {
           ))}
         </Grid>
       )}
-    </div>
+    </Paper>
   );
 }

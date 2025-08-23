@@ -10,6 +10,10 @@ import CartPage from "./components/cart/CartPage";
 import LoginPage from "./components/auth/LoginPage";
 import RegisterPage from "./components/auth/RegisterPage";
 import NotFound from "./components/mainpage/NotFound";
+
+import PrivateRoute from "./components/auth/PrivateRoute";
+import ProfilePage from "./components/profile/ProfilePage";
+
 function App() {
   return (
     <BrowserRouter>
@@ -39,6 +43,13 @@ function MainLayout() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        {/* <Route element={<SellerRoute />}>
+          <Route path="/seller/dashboard" element={<SellerDashboard />} />
+        </Route> */}
+
+        <Route element={<PrivateRoute />}>
+          <Route path="/profile" element={<ProfilePage />} />
+        </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

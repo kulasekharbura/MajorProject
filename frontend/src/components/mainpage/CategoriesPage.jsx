@@ -14,6 +14,8 @@ import {
   CardMedia,
   Box,
   CardActionArea,
+  Container,
+  Paper,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import LocationContext from "../../context/LocationContext";
@@ -25,16 +27,14 @@ export default function CategoriesPage() {
   const [searchParams] = useSearchParams();
   const paramLocation = searchParams.get("location") || "";
 
-  // effectiveLocation: prefer context, then query param, then localStorage
   const effectiveLocation =
     ctxLocation || paramLocation || localStorage.getItem("location") || "";
 
-  const [grouped, setGrouped] = React.useState({}); // { category: [shop,...] }
-  const [categories, setCategories] = React.useState([]); // sorted category names
+  const [grouped, setGrouped] = React.useState({});
+  const [categories, setCategories] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
 
-  // sync context if a query param is present but context is empty/different
   React.useEffect(() => {
     if (paramLocation && ctxLocation !== paramLocation) {
       setCtxLocation(paramLocation);
@@ -61,7 +61,6 @@ export default function CategoriesPage() {
         if (!mounted) return;
         const shops = res.data.shops || [];
 
-        // group by category (normalize empty categories)
         const map = shops.reduce((acc, shop) => {
           const cat = (shop.category || "Uncategorized").trim();
           if (!acc[cat]) acc[cat] = [];
@@ -69,12 +68,10 @@ export default function CategoriesPage() {
           return acc;
         }, {});
 
-        // sort category names lexicographically (case-insensitive)
         const cats = Object.keys(map).sort((a, b) =>
           a.localeCompare(b, undefined, { sensitivity: "base" })
         );
 
-        // sort shops inside each category by name lexicographically
         cats.forEach((cat) => {
           map[cat].sort((s1, s2) =>
             (s1.name || "").localeCompare(s2.name || "", undefined, {
@@ -108,63 +105,112 @@ export default function CategoriesPage() {
     navigate(`/shop/${shopId}${qs}`);
   };
 
-  if (!effectiveLocation)
-    return <Typography>Please select a location first.</Typography>;
   if (loading)
     return (
       <Box sx={{ textAlign: "center", mt: 4 }}>
         <CircularProgress />
       </Box>
     );
-  if (error) return <Typography color="error">{error}</Typography>;
-  if (categories.length === 0)
-    return (
-      <Typography>No shops/categories found in {effectiveLocation}.</Typography>
-    );
 
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom>
-        Categories — {effectiveLocation}
-      </Typography>
+    <Box sx={{ bgcolor: "#f7f9fc", minHeight: "calc(100vh - 64px)" }}>
+      <Container sx={{ py: 4 }}>
+        <Paper elevation={2} sx={{ p: { xs: 2, md: 4 }, borderRadius: "12px" }}>
+          <Typography
+            variant="h4"
+            component="h1"
+            gutterBottom
+            fontWeight="bold"
+          >
+            Categories in {effectiveLocation}
+          </Typography>
 
-      {categories.map((cat) => (
-        <Accordion key={cat} defaultExpanded={false} sx={{ mb: 1 }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography sx={{ fontWeight: 600 }}>{cat}</Typography>
-            <Typography sx={{ ml: 2, color: "text.secondary" }}>
-              ({(grouped[cat] || []).length} shops)
+          {!effectiveLocation ? (
+            <Typography>Please select a location first.</Typography>
+          ) : error ? (
+            <Typography color="error">{error}</Typography>
+          ) : categories.length === 0 ? (
+            <Typography>
+              No shops or categories found in {effectiveLocation}.
             </Typography>
-          </AccordionSummary>
+          ) : (
+            categories.map((cat, index) => (
+              <Accordion
+                key={cat}
+                defaultExpanded={index === 0} // Expand the first category by default
+                elevation={0}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  "&:not(:last-child)": {
+                    borderBottom: 0,
+                  },
+                  "&:before": {
+                    display: "none",
+                  },
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{
+                    backgroundColor: "action.hover",
+                    borderTopLeftRadius: "inherit",
+                    borderTopRightRadius: "inherit",
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 600 }}>{cat}</Typography>
+                  <Typography sx={{ ml: 2, color: "text.secondary" }}>
+                    ({(grouped[cat] || []).length} shops)
+                  </Typography>
+                </AccordionSummary>
 
-          <AccordionDetails>
-            <Grid container spacing={2} columns={12}>
-              {(grouped[cat] || []).map((shop) => (
-                <Grid key={shop._id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Card sx={{ height: "100%" }}>
-                    <CardActionArea onClick={() => openShop(shop._id)}>
-                      {shop.imageUrl && (
-                        <CardMedia
-                          component="img"
-                          height="140"
-                          image={shop.imageUrl}
-                          alt={shop.name}
-                        />
-                      )}
-                      <CardContent>
-                        <Typography variant="subtitle1">{shop.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {shop.locationName}
-                        </Typography>
-                      </CardContent>
-                    </CardActionArea>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </AccordionDetails>
-        </Accordion>
-      ))}
+                <AccordionDetails sx={{ p: 2 }}>
+                  <Grid container spacing={3}>
+                    {(grouped[cat] || []).map((shop) => (
+                      <Grid item key={shop._id} xs={12} sm={6} md={4}>
+                        <Card
+                          sx={{
+                            height: "100%",
+                            borderRadius: "12px",
+                            transition: "transform 0.2s",
+                            "&:hover": { transform: "scale(1.03)" },
+                          }}
+                        >
+                          <CardActionArea onClick={() => openShop(shop._id)}>
+                            {shop.imageUrl && (
+                              <CardMedia
+                                component="img"
+                                height="140"
+                                image={shop.imageUrl}
+                                alt={shop.name}
+                              />
+                            )}
+                            <CardContent>
+                              <Typography
+                                variant="h6"
+                                component="div"
+                                fontWeight="medium"
+                              >
+                                {shop.name}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {shop.locationName}
+                              </Typography>
+                            </CardContent>
+                          </CardActionArea>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </AccordionDetails>
+              </Accordion>
+            ))
+          )}
+        </Paper>
+      </Container>
     </Box>
   );
 }

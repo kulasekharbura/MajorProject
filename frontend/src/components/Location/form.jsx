@@ -10,22 +10,20 @@ import LocationContext from "../../context/LocationContext";
 
 export default function FormSelect() {
   const navigate = useNavigate();
-
-  // get location and setter from context
   const { location, setLocation } = useContext(LocationContext);
 
-  const handleChange = (event) => {
-    const selectedLocation = event.target.value;
-
-    // update context (LocationProvider will keep localStorage in sync)
-    setLocation(selectedLocation);
-
-    // Navigate to home with query param
-    navigate(`/home?location=${encodeURIComponent(selectedLocation)}`);
+  const handleLocationSelect = (selectedLocation) => {
+    // Ensure a location is actually selected
+    if (selectedLocation) {
+      // Update the location in our context and localStorage
+      setLocation(selectedLocation);
+      // Navigate to the home page with the selected location as a query parameter
+      navigate(`/home?location=${encodeURIComponent(selectedLocation)}`);
+    }
   };
 
   return (
-    <Box sx={{ minWidth: 240 }}>
+    <Box sx={{ minWidth: 240, maxWidth: 500, mx: "auto", p: 4 }}>
       <FormControl fullWidth>
         <InputLabel id="location-select-label">Choose Your Location</InputLabel>
         <Select
@@ -33,10 +31,24 @@ export default function FormSelect() {
           id="location-select"
           value={location || ""}
           label="Choose Your Location"
-          onChange={handleChange}
+          // We still need onChange for accessibility, e.g., keyboard navigation
+          onChange={(e) => handleLocationSelect(e.target.value)}
         >
-          <MenuItem value="Tanuku">Tanuku</MenuItem>
-          <MenuItem value="Kolkata">Kolkata</MenuItem>
+          {/* Adding onClick to each MenuItem ensures that clicking an already 
+            selected item will still trigger the navigation.
+          */}
+          <MenuItem
+            value="Tanuku"
+            onClick={() => handleLocationSelect("Tanuku")}
+          >
+            Tanuku
+          </MenuItem>
+          <MenuItem
+            value="Kolkata"
+            onClick={() => handleLocationSelect("Kolkata")}
+          >
+            Kolkata
+          </MenuItem>
         </Select>
       </FormControl>
     </Box>

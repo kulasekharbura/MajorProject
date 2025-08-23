@@ -1,8 +1,18 @@
 // src/components/auth/LoginPage.jsx
 import React, { useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import AuthContext from "../../context/AuthContext";
-import { Box, TextField, Button, Typography, Alert } from "@mui/material";
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Avatar,
+  Grid,
+  Link,
+} from "@mui/material";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
@@ -33,25 +43,37 @@ export default function LoginPage() {
         p: 3,
         border: "1px solid #ccc",
         borderRadius: 2,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
       }}
     >
-      <Typography variant="h5" gutterBottom>
-        Login
+      <Avatar sx={{ m: 1, bgcolor: "secondary.main" }}>
+        <LockOutlinedIcon />
+      </Avatar>
+      <Typography component="h1" variant="h5">
+        Sign in
       </Typography>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mt: 2, width: "100%" }}>
           {error}
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ mt: 1, width: "100%" }}
+      >
         <TextField
           label="Email or Username"
           fullWidth
           margin="normal"
           value={emailOrUsername}
           onChange={(e) => setEmailOrUsername(e.target.value)}
+          required
+          autoFocus
         />
         <TextField
           label="Password"
@@ -60,12 +82,25 @@ export default function LoginPage() {
           margin="normal"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
 
-        <Button type="submit" variant="contained" fullWidth sx={{ mt: 2 }}>
-          Login
+        <Button
+          type="submit"
+          fullWidth
+          variant="contained"
+          sx={{ mt: 3, mb: 2 }}
+        >
+          Sign In
         </Button>
-      </form>
+        <Grid container justifyContent="flex-end">
+          <Grid item>
+            <Link component={RouterLink} to="/register" variant="body2">
+              {"Don't have an account? Sign Up"}
+            </Link>
+          </Grid>
+        </Grid>
+      </Box>
     </Box>
   );
 }

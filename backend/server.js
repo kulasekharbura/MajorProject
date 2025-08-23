@@ -337,6 +337,7 @@ app.post("/cart/add", ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 // POST /cart/merge  => merge an array of items into logged-in user's cart
 // Body: { items: [ { itemId, quantity }, ... ] }
 app.post("/cart/merge", ensureAuthenticated, async (req, res) => {
@@ -379,6 +380,92 @@ app.post("/cart/merge", ensureAuthenticated, async (req, res) => {
     return res.json({ ok: true, count: cartCount });
   } catch (err) {
     console.error("POST /cart/merge error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /cart/remove => remove a single item from the logged-in user's cart
+app.post("/cart/remove", ensureAuthenticated, async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    if (!itemId) {
+      return res.status(400).json({ error: "itemId is required" });
+    }
+    await User.findByIdAndUpdate(req.user._id, {
+      $pull: { cart: { item: itemId } },
+    });
+    res.json({ ok: true, message: "Item removed" });
+  } catch (err) {
+    console.error("POST /cart/remove error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/cart/clear", ensureAuthenticated, async (req, res) => {
+  try {
+    // Find the user and update their cart to an empty array
+    await User.findByIdAndUpdate(req.user._id, { $set: { cart: [] } });
+    res.json({ ok: true, message: "Cart cleared successfully" });
+  } catch (err) {
+    console.error("POST /cart/clear error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// ----------------- USER PROFILE & ADDRESS API (protected) -----------------
+
+// Update user profile
+app.put("/api/profile", ensureAuthenticated, async (req, res) => {
+  try {
+    const { realName } = req.body;
+    if (!realName) {
+      return res.status(400).json({ error: "Full name is required" });
+    }
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: { realName } },
+      { new: true, runValidators: true }
+    ).select("-password");
+    res.json({ message: "Profile updated successfully", user: updatedUser });
+  } catch (err) {
+    console.error("PUT /api/profile error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Add a new address
+app.post("/api/addresses", ensureAuthenticated, async (req, res) => {
+  try {
+    const { address } = req.body;
+    if (!address || typeof address !== "string" || address.trim() === "") {
+      return res.status(400).json({ error: "A valid address is required" });
+    }
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $push: { addresses: address.trim() } },
+      { new: true }
+    ).select("-password");
+    res.json({ message: "Address added successfully", user: updatedUser });
+  } catch (err) {
+    console.error("POST /api/addresses error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete an address
+app.delete("/api/addresses", ensureAuthenticated, async (req, res) => {
+  try {
+    const { address } = req.body;
+    if (!address) {
+      return res.status(400).json({ error: "Address to remove is required" });
+    }
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $pull: { addresses: address } },
+      { new: true }
+    ).select("-password");
+    res.json({ message: "Address removed successfully", user: updatedUser });
+  } catch (err) {
+    console.error("DELETE /api/addresses error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

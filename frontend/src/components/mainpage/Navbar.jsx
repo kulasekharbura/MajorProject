@@ -23,7 +23,6 @@ import AuthContext from "../../context/AuthContext";
 
 const pages = [{ title: "Categories", to: "/categories" }];
 
-// helper: read cart count from localStorage
 function readCartCountFromStorage() {
   try {
     const raw = localStorage.getItem("cart");
@@ -61,7 +60,7 @@ export default function Navbar({ cartCount = 0 }) {
     const fetchServerCart = async () => {
       if (!isAuthed) return;
       try {
-        const res = await axios.get("/cart"); // axios should be configured with withCredentials
+        const res = await axios.get("/cart");
         if (!mounted) return;
         const cnt = res.data?.count ?? readCartCountFromStorage();
         setBadgeCount(cnt);
@@ -135,7 +134,15 @@ export default function Navbar({ cartCount = 0 }) {
   const userLabel = user ? user.realName || user.username || "User" : "";
 
   return (
-    <AppBar position="sticky">
+    <AppBar
+      position="sticky"
+      elevation={0}
+      sx={{
+        bgcolor: "background.paper", // White background
+        borderBottom: "1px solid",
+        borderColor: "divider",
+      }}
+    >
       <Container maxWidth="xl">
         <Toolbar disableGutters>
           {/* Brand - desktop */}
@@ -148,7 +155,7 @@ export default function Navbar({ cartCount = 0 }) {
               mr: 2,
               display: { xs: "none", md: "flex" },
               fontWeight: 700,
-              color: "inherit",
+              color: "#2E7D32", // Brand green color
               textDecoration: "none",
             }}
           >
@@ -159,26 +166,14 @@ export default function Navbar({ cartCount = 0 }) {
           <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
             <IconButton
               size="large"
-              aria-label="open navigation menu"
-              aria-controls="nav-menu"
-              aria-haspopup="true"
               onClick={handleOpenNavMenu}
-              color="inherit"
+              color="default" // Changed to default for dark icon
             >
               <MenuIcon />
             </IconButton>
             <Menu
               id="nav-menu"
               anchorEl={anchorElNav}
-              anchorOrigin={{
-                vertical: "bottom",
-                horizontal: "left",
-              }}
-              keepMounted
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "left",
-              }}
               open={Boolean(anchorElNav)}
               onClose={handleCloseNavMenu}
               sx={{ display: { xs: "block", md: "none" } }}
@@ -206,7 +201,7 @@ export default function Navbar({ cartCount = 0 }) {
               flexGrow: 1,
               display: { xs: "flex", md: "none" },
               fontWeight: 700,
-              color: "inherit",
+              color: "#2E7D32", // Brand green color
               textDecoration: "none",
             }}
           >
@@ -220,8 +215,7 @@ export default function Navbar({ cartCount = 0 }) {
                 key={page.title}
                 component={RouterLink}
                 to={page.to}
-                onClick={handleCloseNavMenu}
-                sx={{ my: 2, color: "white", display: "block" }}
+                sx={{ my: 2, color: "text.primary", display: "block" }} // Dark text
               >
                 {page.title}
               </Button>
@@ -234,7 +228,7 @@ export default function Navbar({ cartCount = 0 }) {
               <Button
                 startIcon={<LocationOnIcon />}
                 onClick={handleChangeLocation}
-                sx={{ color: "inherit", textTransform: "none" }}
+                sx={{ color: "text.secondary", textTransform: "none" }} // Dark text
               >
                 {queryLocation || "Choose location"}
               </Button>
@@ -245,11 +239,10 @@ export default function Navbar({ cartCount = 0 }) {
           <IconButton
             size="large"
             aria-label={`show ${badgeCount} items in cart`}
-            color="inherit"
             onClick={handleCartClick}
-            sx={{ mr: 1 }}
+            sx={{ mr: 1, color: "text.secondary" }} // Dark icon
           >
-            <Badge badgeContent={badgeCount} color="secondary">
+            <Badge badgeContent={badgeCount} color="error">
               <ShoppingCartIcon />
             </Badge>
           </IconButton>
@@ -258,7 +251,11 @@ export default function Navbar({ cartCount = 0 }) {
           <Box sx={{ flexGrow: 0 }}>
             <Tooltip title={user ? "Open settings" : "Sign in / Register"}>
               <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-                <Avatar alt={userLabel} src={user?.avatar || ""}>
+                <Avatar
+                  sx={{ bgcolor: "secondary.main" }}
+                  alt={userLabel}
+                  src={user?.avatar || ""}
+                >
                   {!userLabel ? "U" : userLabel.charAt(0).toUpperCase()}
                 </Avatar>
               </IconButton>
@@ -268,15 +265,9 @@ export default function Navbar({ cartCount = 0 }) {
               sx={{ mt: "45px" }}
               id="user-menu"
               anchorEl={anchorElUser}
-              anchorOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
               keepMounted
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
               open={Boolean(anchorElUser)}
               onClose={handleCloseUserMenu}
             >
@@ -285,6 +276,19 @@ export default function Navbar({ cartCount = 0 }) {
                     <MenuItem key="profile" onClick={handleProfile}>
                       <Typography textAlign="center">Profile</Typography>
                     </MenuItem>,
+                    user.role === "seller" && (
+                      <MenuItem
+                        key="seller-dashboard"
+                        onClick={() => {
+                          handleCloseUserMenu();
+                          navigate("/seller/dashboard");
+                        }}
+                      >
+                        <Typography textAlign="center">
+                          Seller Dashboard
+                        </Typography>
+                      </MenuItem>
+                    ),
                     <MenuItem key="logout" onClick={handleLogout}>
                       <Typography textAlign="center">Logout</Typography>
                     </MenuItem>,
