@@ -1,4 +1,11 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useLocation,
+  Outlet,
+} from "react-router-dom";
+import React, { useContext } from "react";
 import FormSelect from "./components/Location/form";
 import HomePage from "./components/mainpage/HomePage";
 import CategoriesPage from "./components/mainpage/CategoriesPage";
@@ -18,7 +25,36 @@ import ProfilePage from "./components/profile/ProfilePage";
 import SellerOrdersPage from "./components/seller/SellerOrdersPage";
 import CheckoutPage from "./components/checkout/CheckoutPage";
 import OrderSuccessPage from "./components/checkout/OrderSuccessPage";
-import SellerOrderDetailsPage from "./components/seller/SellerOrderDetailsPage"; // 1. Import the details page
+import SellerOrderDetailsPage from "./components/seller/SellerOrderDetailsPage";
+import DeliveryDashboard from "./components/delivery/DeliveryDashboard";
+import { Box, CircularProgress, Typography } from "@mui/material";
+import AuthContext from "./context/AuthContext";
+
+// New middleware for delivery boy routes
+function DeliveryRoute() {
+  const { user, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!user || user.role !== "delivery_boy") {
+    return (
+      <Box sx={{ textAlign: "center", mt: 4 }}>
+        <Typography variant="h5" color="error">
+          Access Denied
+        </Typography>
+        <Typography>You do not have permission to view this page.</Typography>
+      </Box>
+    );
+  }
+
+  return <Outlet />;
+}
 
 function App() {
   return (
@@ -62,6 +98,11 @@ function MainLayout() {
             path="/seller/orders/:orderId"
             element={<SellerOrderDetailsPage />}
           />
+        </Route>
+
+        {/* Delivery Boy Routes */}
+        <Route element={<DeliveryRoute />}>
+          <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
         </Route>
 
         {/* Private User Routes */}

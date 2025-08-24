@@ -125,6 +125,7 @@ export function AuthProvider({ children }) {
     email,
     password,
     role = "consumer",
+    locationName,
   }) => {
     const res = await axios.post("/auth/register", {
       username,
@@ -132,6 +133,7 @@ export function AuthProvider({ children }) {
       email,
       password,
       role,
+      locationName,
     });
     setUser(res.data.user);
     await mergeLocalCart();

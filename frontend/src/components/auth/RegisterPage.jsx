@@ -29,13 +29,21 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("consumer");
+  const [locationName, setLocationName] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     try {
-      await register({ username, realName, email, password, role });
+      await register({
+        username,
+        realName,
+        email,
+        password,
+        role,
+        locationName,
+      });
       navigate("/home");
     } catch (err) {
       console.error(err);
@@ -132,6 +140,19 @@ export default function RegisterPage() {
                 </Select>
               </FormControl>
             </Grid>
+            {role !== "consumer" && (
+              <Grid item xs={12}>
+                <TextField
+                  required
+                  fullWidth
+                  id="locationName"
+                  label="City / Location"
+                  name="locationName"
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                />
+              </Grid>
+            )}
           </Grid>
           <Button
             type="submit"

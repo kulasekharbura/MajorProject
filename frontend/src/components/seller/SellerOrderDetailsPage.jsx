@@ -66,9 +66,11 @@ export default function SellerOrderDetailsPage() {
 
   // Fetch delivery personnel when the order is loaded and status is 'confirmed'
   useEffect(() => {
-    if (order && order.status === "confirmed") {
+    if (order && order.status === "confirmed" && order.shop?.locationName) {
       axios
-        .get("/api/delivery-personnel")
+        .get("/api/delivery-personnel", {
+          params: { location: order.shop.locationName },
+        })
         .then((res) => {
           setDeliveryPersonnel(res.data.deliveryPersonnel || []);
         })

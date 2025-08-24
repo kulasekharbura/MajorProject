@@ -173,39 +173,60 @@ app.get("/shops/:id/items", async (req, res) => {
   }
 });
 
-// ----------------- AUTH ROUTES (STEP 2) -----------------
+// ----------------- AUTH ROUTES -----------------
 
 // Register: create user and auto-login
 app.post("/auth/register", async (req, res) => {
   try {
-    const { username, realName, email, password, role = "consumer" } = req.body;
+    const {
+      username,
+      realName,
+      email,
+      password,
+      role = "consumer",
+      locationName,
+    } = req.body;
     if (!username || !realName || !email || !password) {
       return res
         .status(400)
         .json({ error: "username, realName, email and password required" });
     }
 
+    // Check if locationName is required for the specified role
+    if ((role === "seller" || role === "delivery_boy") && !locationName) {
+      return res
+        .status(400)
+        .json({ error: "Location is required for sellers and delivery boys" });
+    }
+
     // unique check
-    const existing = await User.findOne({ $or: [{ username }, { email }] });
+    const existing = await User.findOne({ $or: [{ email }, { username }] });
     if (existing)
       return res
         .status(409)
         .json({ error: "Username or email already exists" });
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = new User({
+    const newUser = {
       username,
       realName,
       email,
       password: hashed,
       role,
-    });
+    };
+
+    if (role === "seller" || role === "delivery_boy") {
+      newUser.locationName = locationName;
+    }
+
+    const user = new User(newUser);
     await user.save();
 
     // auto-login: creates session cookie
     req.logIn(user, (err) => {
       if (err) {
         console.error("Auto login after register failed:", err);
+        // On auto-login failure, just return the user data without a session
         return res.status(201).json({
           user: {
             _id: user._id,
@@ -221,6 +242,7 @@ app.post("/auth/register", async (req, res) => {
         email: user.email,
         role: user.role,
       };
+      // If auto-login is successful, return user with session
       return res.json({ user: safeUser });
     });
   } catch (err) {
@@ -283,7 +305,7 @@ app.get("/auth/me", (req, res) => {
 
 // ----------------- CART ENDPOINTS (protected) -----------------
 
-// GET /cart  => get server-side cart for logged-in user
+// GET /cart => get server-side cart for logged-in user
 app.get("/cart", ensureAuthenticated, async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
@@ -325,7 +347,7 @@ app.get("/cart", ensureAuthenticated, async (req, res) => {
   }
 });
 
-// POST /cart/add  => add an item to logged-in user's cart
+// POST /cart/add => add an item to logged-in user's cart
 app.post("/cart/add", ensureAuthenticated, async (req, res) => {
   try {
     const { itemId, quantity = 1 } = req.body;
@@ -353,7 +375,7 @@ app.post("/cart/add", ensureAuthenticated, async (req, res) => {
   }
 });
 
-// POST /cart/merge  => merge an array of items into logged-in user's cart
+// POST /cart/merge => merge an array of items into logged-in user's cart
 // Body: { items: [ { itemId, quantity }, ... ] }
 app.post("/cart/merge", ensureAuthenticated, async (req, res) => {
   try {
@@ -811,6 +833,7 @@ app.get(
       // 2. Find all orders where the 'shop' field is in the seller's list of shop IDs
       const orders = await Order.find({ shop: { $in: shopIds } })
         .populate("consumer", "realName") // 3. Populate consumer's name
+        .populate("deliveryBoy", "realName") // Also populate delivery boy's name
         .sort({ createdAt: -1 }); // Show newest orders first
 
       res.json({ orders });
@@ -820,6 +843,8 @@ app.get(
     }
   }
 );
+
+// GET /api/seller/orders/:orderId => Get a single order for the logged-in seller
 app.get(
   "/api/seller/orders/:orderId",
   ensureAuthenticated,
@@ -831,16 +856,15 @@ app.get(
       // 1. Find the order and populate related data
       const order = await Order.findById(orderId)
         .populate("consumer", "realName email")
-        .populate("shop", "name");
+        .populate({ path: "shop", select: "name locationName owner" })
+        .populate("deliveryBoy", "realName");
 
       if (!order) {
         return res.status(404).json({ error: "Order not found." });
       }
 
       // 2. Verify the seller owns the shop associated with this order
-      // We need to find the original shop document to check the owner
-      const shop = await Shop.findById(order.shop._id);
-      if (shop.owner.toString() !== req.user._id.toString()) {
+      if (order.shop.owner.toString() !== req.user._id.toString()) {
         return res
           .status(403)
           .json({ error: "You do not have permission to view this order." });
@@ -853,6 +877,7 @@ app.get(
     }
   }
 );
+// PUT /api/seller/orders/:orderId/status => Update an order status (used for confirming/cancelling)
 app.put(
   "/api/seller/orders/:orderId/status",
   ensureAuthenticated,
@@ -882,7 +907,7 @@ app.put(
 
       // Verify the seller owns the shop associated with this order
       const shop = await Shop.findById(order.shop);
-      if (shop.owner.toString() !== req.user._id.toString()) {
+      if (!shop || shop.owner.toString() !== req.user._id.toString()) {
         return res
           .status(403)
           .json({ error: "You do not have permission to update this order." });
@@ -892,7 +917,15 @@ app.put(
       order.status = status;
       await order.save();
 
-      res.json({ message: `Order status updated to ${status}`, order });
+      const updatedOrder = await Order.findById(orderId)
+        .populate("consumer", "realName email")
+        .populate("shop", "name")
+        .populate("deliveryBoy", "realName");
+
+      res.json({
+        message: `Order status updated to ${status}`,
+        order: updatedOrder,
+      });
     } catch (err) {
       console.error("PUT /api/seller/orders/:orderId/status error:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -906,9 +939,12 @@ app.get(
   ensureSeller,
   async (req, res) => {
     try {
-      const deliveryPersonnel = await User.find({
-        role: "delivery_boy",
-      }).select("realName");
+      const { location } = req.query; // Get location from query params
+      const filter = { role: "delivery_boy" };
+      if (location) {
+        filter.locationName = location;
+      }
+      const deliveryPersonnel = await User.find(filter).select("realName");
       res.json({ deliveryPersonnel });
     } catch (err) {
       console.error("GET /api/delivery-personnel error:", err);
@@ -946,11 +982,9 @@ app.put(
 
       // Check if the order is in a state that can be assigned
       if (order.status !== "confirmed") {
-        return res
-          .status(400)
-          .json({
-            error: "Order must be 'confirmed' to be assigned for delivery.",
-          });
+        return res.status(400).json({
+          error: "Order must be 'confirmed' to be assigned for delivery.",
+        });
       }
 
       // Assign the delivery person and update the status to 'shipped'
@@ -960,7 +994,8 @@ app.put(
 
       const updatedOrder = await Order.findById(orderId)
         .populate("consumer", "realName email")
-        .populate("shop", "name");
+        .populate("shop", "name")
+        .populate("deliveryBoy", "realName");
 
       res.json({
         message: "Order assigned and marked as shipped!",
@@ -972,65 +1007,13 @@ app.put(
     }
   }
 );
-app.put(
-  "/api/seller/orders/:orderId/status",
-  ensureAuthenticated,
-  ensureSeller,
-  async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      const { status } = req.body;
 
-      // Validate the new status against the allowed values in your Order model
-      const validStatuses = [
-        "placed",
-        "confirmed",
-        "shipped",
-        "delivered",
-        "cancelled",
-      ];
-      if (!status || !validStatuses.includes(status)) {
-        return res.status(400).json({ error: "Invalid status provided." });
-      }
-
-      // Find the order
-      const order = await Order.findById(orderId);
-      if (!order) {
-        return res.status(404).json({ error: "Order not found." });
-      }
-
-      // Verify the seller owns the shop associated with this order
-      const shop = await Shop.findById(order.shop);
-      if (!shop || shop.owner.toString() !== req.user._id.toString()) {
-        return res
-          .status(403)
-          .json({ error: "You do not have permission to update this order." });
-      }
-
-      // Update the status and save the document
-      order.status = status;
-      await order.save();
-
-      // Populate the necessary fields again for the response
-      const updatedOrder = await Order.findById(orderId)
-        .populate("consumer", "realName email")
-        .populate("shop", "name");
-
-      res.json({
-        message: `Order status updated to ${status}`,
-        order: updatedOrder,
-      });
-    } catch (err) {
-      console.error("PUT /api/seller/orders/:orderId/status error:", err);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  }
-);
-
+// GET /api/my-orders => get all orders for a consumer
 app.get("/api/my-orders", ensureAuthenticated, async (req, res) => {
   try {
     const orders = await Order.find({ consumer: req.user._id })
       .populate("shop", "name") // Get the shop's name
+      .populate("deliveryBoy", "realName") // Populate delivery boy's name
       .sort({ createdAt: -1 }); // Show newest orders first
 
     res.json({ orders });
@@ -1039,6 +1022,96 @@ app.get("/api/my-orders", ensureAuthenticated, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// ----------------- DELIVERY BOY API (protected) -----------------
+
+// Middleware to ensure the user is a delivery boy
+function ensureDeliveryBoy(req, res, next) {
+  if (req.user && req.user.role === "delivery_boy") {
+    return next();
+  }
+  return res.status(403).json({ error: "Forbidden: Access denied" });
+}
+
+// GET /api/delivery/my-orders => get all orders assigned to the logged-in delivery boy
+app.get(
+  "/api/delivery/my-orders",
+  ensureAuthenticated,
+  ensureDeliveryBoy,
+  async (req, res) => {
+    try {
+      const orders = await Order.find({ deliveryBoy: req.user._id })
+        .populate("consumer", "realName addresses")
+        .populate("shop", "name locationName")
+        .sort({ createdAt: -1 });
+
+      res.json({ orders });
+    } catch (err) {
+      console.error("GET /api/delivery/my-orders error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PUT /api/delivery/orders/:orderId/status => allow delivery boy to update order status
+app.put(
+  "/api/delivery/orders/:orderId/status",
+  ensureAuthenticated,
+  ensureDeliveryBoy,
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { status } = req.body;
+
+      // Delivery boy can only mark an order as 'delivered'
+      if (status !== "delivered") {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Invalid status update. Delivery boys can only mark orders as 'delivered'.",
+          });
+      }
+
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found." });
+      }
+
+      // Verify this order is assigned to the current delivery boy
+      if (order.deliveryBoy.toString() !== req.user._id.toString()) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to update this order." });
+      }
+
+      // Only allow updating from 'shipped' to 'delivered'
+      if (order.status !== "shipped") {
+        return res
+          .status(400)
+          .json({
+            error: "Order must be 'shipped' to be marked as 'delivered'.",
+          });
+      }
+
+      order.status = status;
+      await order.save();
+
+      const updatedOrder = await Order.findById(orderId)
+        .populate("consumer", "realName email")
+        .populate("shop", "name")
+        .populate("deliveryBoy", "realName");
+
+      res.json({
+        message: `Order status updated to ${status}`,
+        order: updatedOrder,
+      });
+    } catch (err) {
+      console.error("PUT /api/delivery/orders/:orderId/status error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
 
 //---------------------------------------------------//
 

@@ -1,5 +1,5 @@
-// src/components/seller/SellerOrdersPage.jsx
-import React, { useState, useEffect } from "react";
+// src/components/delivery/DeliveryDashboard.jsx
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import {
   Box,
@@ -15,8 +15,8 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Button,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
 
 const statusColors = {
   placed: "primary",
@@ -26,27 +26,44 @@ const statusColors = {
   cancelled: "error",
 };
 
-export default function SellerOrdersPage() {
-  const navigate = useNavigate();
+export default function DeliveryDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get("/api/delivery/my-orders");
+      setOrders(res.data.orders || []);
+    } catch (err) {
+      setError("Failed to fetch assigned orders. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const res = await axios.get("/api/seller/orders");
-        setOrders(res.data.orders || []);
-      } catch (err) {
-        setError("Failed to fetch orders. Please try again.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
+
+  const handleMarkAsDelivered = async (orderId) => {
+    setIsUpdating(true);
+    try {
+      await axios.put(`/api/delivery/orders/${orderId}/status`, {
+        status: "delivered",
+      });
+      // Refresh the orders list to show the updated status
+      await fetchOrders();
+    } catch (err) {
+      setError("Failed to update order status.");
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <Box sx={{ bgcolor: "#f7f9fc", minHeight: "calc(100vh - 64px)", py: 4 }}>
@@ -57,7 +74,7 @@ export default function SellerOrdersPage() {
           fontWeight="bold"
           sx={{ mb: 4 }}
         >
-          Incoming Orders
+          My Deliveries
         </Typography>
 
         <Paper sx={{ p: 2, borderRadius: "12px" }}>
@@ -73,37 +90,29 @@ export default function SellerOrdersPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell>Order Code</TableCell>
-                    <TableCell>Date</TableCell>
+                    <TableCell>Shop</TableCell>
                     <TableCell>Customer</TableCell>
-                    <TableCell>Total Bill</TableCell>
+                    <TableCell>Delivery Address</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Delivery Person</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {orders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} sx={{ textAlign: "center" }}>
-                        You have no orders yet.
+                      <TableCell colSpan={6} sx={{ textAlign: "center" }}>
+                        You have no assigned orders yet.
                       </TableCell>
                     </TableRow>
                   ) : (
                     orders.map((order) => (
-                      <TableRow
-                        key={order._id}
-                        hover
-                        onClick={() => navigate(`/seller/orders/${order._id}`)}
-                        sx={{ cursor: "pointer" }}
-                      >
+                      <TableRow key={order._id}>
                         <TableCell>{order.orderCode}</TableCell>
-                        <TableCell>
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </TableCell>
+                        <TableCell>{order.shop?.name || "N/A"}</TableCell>
                         <TableCell>
                           {order.consumer?.realName || "N/A"}
                         </TableCell>
-                        <TableCell>₹{order.totalBill}</TableCell>
+                        <TableCell>{order.deliveryAddress}</TableCell>
                         <TableCell>
                           <Chip
                             label={order.status}
@@ -112,9 +121,17 @@ export default function SellerOrdersPage() {
                           />
                         </TableCell>
                         <TableCell>
-                          {order.deliveryBoy?.realName || "Unassigned"}
+                          {order.status === "shipped" && (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={() => handleMarkAsDelivered(order._id)}
+                              disabled={isUpdating}
+                            >
+                              Mark as Delivered
+                            </Button>
+                          )}
                         </TableCell>
-                        <TableCell>View Details</TableCell>
                       </TableRow>
                     ))
                   )}

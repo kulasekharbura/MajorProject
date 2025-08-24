@@ -289,6 +289,19 @@ export default function Navbar({ cartCount = 0 }) {
                         </Typography>
                       </MenuItem>
                     ),
+                    user.role === "delivery_boy" && (
+                      <MenuItem
+                        key="delivery-dashboard"
+                        onClick={() => {
+                          handleCloseUserMenu();
+                          navigate("/delivery/dashboard");
+                        }}
+                      >
+                        <Typography textAlign="center">
+                          My Deliveries
+                        </Typography>
+                      </MenuItem>
+                    ),
                     <MenuItem key="logout" onClick={handleLogout}>
                       <Typography textAlign="center">Logout</Typography>
                     </MenuItem>,

@@ -307,12 +307,13 @@ export default function ProfilePage() {
                     <TableCell>Shop</TableCell>
                     <TableCell>Total</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell>Delivery Person</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {orders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} align="center">
+                      <TableCell colSpan={6} align="center">
                         You have not placed any orders yet.
                       </TableCell>
                     </TableRow>
@@ -331,6 +332,9 @@ export default function ProfilePage() {
                             color={statusColors[order.status]}
                             size="small"
                           />
+                        </TableCell>
+                        <TableCell>
+                          {order.deliveryBoy?.realName || "Unassigned"}
                         </TableCell>
                       </TableRow>
                     ))
