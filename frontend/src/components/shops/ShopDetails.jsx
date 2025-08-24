@@ -160,7 +160,7 @@ export default function ShopDetails({ shopId }) {
                   height="160"
                   image={
                     it.imageUrl ||
-                    "https://via.placeholder.com/300x160.png/f0f0f0/333333?text=Item+Image"
+                    "https://placehold.co/300x160/f0f0f0/333333?text=Item+Image"
                   }
                   alt={it.name}
                 />

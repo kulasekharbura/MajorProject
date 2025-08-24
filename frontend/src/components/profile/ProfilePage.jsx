@@ -1,5 +1,5 @@
 // src/components/profile/ProfilePage.jsx
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -15,6 +15,14 @@ import {
   IconButton,
   Snackbar,
   Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  CircularProgress,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -22,20 +30,50 @@ import HomeIcon from "@mui/icons-material/Home";
 import AuthContext from "../../context/AuthContext";
 import axios from "axios";
 
+const statusColors = {
+  placed: "primary",
+  confirmed: "info",
+  shipped: "warning",
+  delivered: "success",
+  cancelled: "error",
+};
+
 export default function ProfilePage() {
   const { user, refreshMe } = useContext(AuthContext);
 
   const [realName, setRealName] = useState(user?.realName || "");
   const [isEditing, setIsEditing] = useState(false);
   const [newAddress, setNewAddress] = useState("");
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [snack, setSnack] = useState({
     open: false,
     msg: "",
     severity: "success",
   });
 
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!user) return;
+      try {
+        setLoadingOrders(true);
+        const res = await axios.get("/api/my-orders");
+        setOrders(res.data.orders || []);
+      } catch (err) {
+        console.error("Failed to fetch orders", err);
+      } finally {
+        setLoadingOrders(false);
+      }
+    };
+    fetchOrders();
+  }, [user]);
+
   if (!user) {
-    return null; // Or a loading spinner
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   const handleProfileUpdate = async (e) => {
@@ -250,6 +288,58 @@ export default function ProfilePage() {
             </Paper>
           </Grid>
         </Grid>
+
+        {/* My Orders Section */}
+        <Paper sx={{ p: 3, borderRadius: "12px", mt: 4, boxShadow: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            My Order History
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          {loadingOrders ? (
+            <CircularProgress />
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Order Code</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Shop</TableCell>
+                    <TableCell>Total</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {orders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        You have not placed any orders yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    orders.map((order) => (
+                      <TableRow key={order._id}>
+                        <TableCell>{order.orderCode}</TableCell>
+                        <TableCell>
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>{order.shop?.name || "N/A"}</TableCell>
+                        <TableCell>₹{order.totalBill}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={order.status}
+                            color={statusColors[order.status]}
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
       </Container>
       <Snackbar
         open={snack.open}

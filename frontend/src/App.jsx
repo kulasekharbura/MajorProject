@@ -10,9 +10,15 @@ import CartPage from "./components/cart/CartPage";
 import LoginPage from "./components/auth/LoginPage";
 import RegisterPage from "./components/auth/RegisterPage";
 import NotFound from "./components/mainpage/NotFound";
-
+import SellerDashboard from "./components/seller/SellerDashboard";
+import ManageItemsPage from "./components/seller/ManageItemsPage";
+import SellerRoute from "./components/auth/SellerRoute";
 import PrivateRoute from "./components/auth/PrivateRoute";
 import ProfilePage from "./components/profile/ProfilePage";
+import SellerOrdersPage from "./components/seller/SellerOrdersPage";
+import CheckoutPage from "./components/checkout/CheckoutPage";
+import OrderSuccessPage from "./components/checkout/OrderSuccessPage";
+import SellerOrderDetailsPage from "./components/seller/SellerOrderDetailsPage"; // 1. Import the details page
 
 function App() {
   return (
@@ -29,7 +35,6 @@ function App() {
 function MainLayout() {
   const location = useLocation();
 
-  // We don't want navbar on the "/" route (location selection page)
   const hideNavbar = location.pathname === "/";
 
   return (
@@ -43,13 +48,32 @@ function MainLayout() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        {/* <Route element={<SellerRoute />}>
-          <Route path="/seller/dashboard" element={<SellerDashboard />} />
-        </Route> */}
 
+        {/* Seller Routes */}
+        <Route element={<SellerRoute />}>
+          <Route path="/seller/dashboard" element={<SellerDashboard />} />
+          <Route
+            path="/seller/shop/:shopId/items"
+            element={<ManageItemsPage />}
+          />
+          <Route path="/seller/orders" element={<SellerOrdersPage />} />
+          {/* 2. Add the route for a single order's details */}
+          <Route
+            path="/seller/orders/:orderId"
+            element={<SellerOrderDetailsPage />}
+          />
+        </Route>
+
+        {/* Private User Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route
+            path="/order-success/:orderCode"
+            element={<OrderSuccessPage />}
+          />
         </Route>
+
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

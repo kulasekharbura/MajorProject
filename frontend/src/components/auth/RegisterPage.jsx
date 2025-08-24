@@ -38,7 +38,6 @@ export default function RegisterPage() {
       await register({ username, realName, email, password, role });
       navigate("/home");
     } catch (err) {
-      // Added opening curly brace here
       console.error(err);
       setError(err.response?.data?.message || "Registration failed");
     }
@@ -129,6 +128,7 @@ export default function RegisterPage() {
                 >
                   <MenuItem value="consumer">Consumer</MenuItem>
                   <MenuItem value="seller">Seller</MenuItem>
+                  <MenuItem value="delivery_boy">Delivery Boy</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

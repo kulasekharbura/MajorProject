@@ -113,6 +113,19 @@ function ensureAuthenticated(req, res, next) {
 }
 // ---------- end passport/session setup ----------
 
+// ----------------- PUBLIC API ROUTES -----------------
+
+// GET /api/locations => Get a unique list of all shop locations
+app.get("/api/locations", async (req, res) => {
+  try {
+    // .distinct() finds all unique values for a given field in a collection.
+    const locations = await Shop.distinct("locationName");
+    res.json({ locations });
+  } catch (err) {
+    console.error("GET /api/locations error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 //------------------------------------------------//
 // Example routes (home & shops) — unchanged from your code
 app.get("/home", async (req, res) => {
@@ -125,7 +138,9 @@ app.get("/home", async (req, res) => {
 
     const shops = await Shop.find({
       locationName: { $regex: `^${loc}$`, $options: "i" },
-    }).lean();
+    })
+      .populate("owner", "realName email")
+      .lean();
 
     return res.json({ count: shops.length, shops });
   } catch (err) {
@@ -466,6 +481,561 @@ app.delete("/api/addresses", ensureAuthenticated, async (req, res) => {
     res.json({ message: "Address removed successfully", user: updatedUser });
   } catch (err) {
     console.error("DELETE /api/addresses error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ----------------- SELLER API (protected) -----------------
+
+// Middleware to ensure the user is a seller
+function ensureSeller(req, res, next) {
+  if (req.user && req.user.role === "seller") {
+    return next();
+  }
+  return res.status(403).json({ error: "Forbidden: Access denied" });
+}
+
+// POST /api/shops => Create a new shop
+app.post("/api/shops", ensureAuthenticated, ensureSeller, async (req, res) => {
+  try {
+    const { name, category, locationName, imageUrl } = req.body;
+    if (!name || !category || !locationName) {
+      return res
+        .status(400)
+        .json({ error: "Name, category, and location are required." });
+    }
+
+    const newShop = new Shop({
+      owner: req.user._id, // The owner is the currently logged-in user
+      name,
+      category,
+      locationName,
+      imageUrl,
+    });
+
+    await newShop.save();
+    res
+      .status(201)
+      .json({ message: "Shop created successfully", shop: newShop });
+  } catch (err) {
+    console.error("POST /api/shops error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/seller/shops => Get all shops owned by the logged-in seller
+app.get(
+  "/api/seller/shops",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const shops = await Shop.find({ owner: req.user._id }).sort({
+        createdAt: -1,
+      });
+      res.json({ shops });
+    } catch (err) {
+      console.error("GET /api/seller/shops error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+// ... (inside SELLER API section)
+// PUT /api/shops/:shopId => Update an existing shop
+app.put(
+  "/api/shops/:shopId",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { shopId } = req.params;
+      const { name, category, locationName, imageUrl } = req.body;
+
+      if (!name || !category || !locationName) {
+        return res
+          .status(400)
+          .json({ error: "Name, category, and location are required." });
+      }
+
+      // Find the shop and verify the current user is the owner
+      const shop = await Shop.findOne({ _id: shopId, owner: req.user._id });
+
+      if (!shop) {
+        return res.status(404).json({
+          error: "Shop not found or you do not have permission to edit it.",
+        });
+      }
+
+      // Update the shop's properties
+      shop.name = name;
+      shop.category = category;
+      shop.locationName = locationName;
+      shop.imageUrl = imageUrl;
+
+      await shop.save();
+      res.json({ message: "Shop updated successfully", shop });
+    } catch (err) {
+      console.error("PUT /api/shops/:shopId error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// GET /api/shops/:shopId/items => Get all items for a specific shop owned by the seller
+app.get(
+  "/api/shops/:shopId/items",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { shopId } = req.params;
+      // Verify the seller owns this shop
+      const shop = await Shop.findOne({ _id: shopId, owner: req.user._id });
+      if (!shop) {
+        return res
+          .status(404)
+          .json({ error: "Shop not found or you do not own this shop." });
+      }
+
+      const items = await Item.find({ shop: shopId }).sort({ createdAt: -1 });
+      res.json({ items });
+    } catch (err) {
+      console.error("GET /api/shops/:shopId/items error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// POST /api/shops/:shopId/items => Create a new item for a specific shop
+app.post(
+  "/api/shops/:shopId/items",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { shopId } = req.params;
+      const { name, description, category, price, imageUrl } = req.body;
+
+      if (!name || !category || !price || !price.perPiece) {
+        return res.status(400).json({
+          error: "Name, category, and price (perPiece) are required.",
+        });
+      }
+
+      // Verify the seller owns this shop before adding an item
+      const shop = await Shop.findOne({ _id: shopId, owner: req.user._id });
+      if (!shop) {
+        return res
+          .status(404)
+          .json({ error: "Shop not found or you do not own this shop." });
+      }
+
+      const newItem = new Item({
+        shop: shopId,
+        name,
+        description,
+        category,
+        price, // Expects an object like { perPiece: 100 }
+        imageUrl,
+      });
+
+      await newItem.save();
+      res
+        .status(201)
+        .json({ message: "Item created successfully", item: newItem });
+    } catch (err) {
+      console.error("POST /api/shops/:shopId/items error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PUT /api/items/:itemId => Update an existing item
+app.put(
+  "/api/items/:itemId",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const { name, description, category, price, imageUrl } = req.body;
+
+      if (!name || !category || !price || !price.perPiece) {
+        return res
+          .status(400)
+          .json({ error: "Name, category, and price are required." });
+      }
+
+      // Find the item to verify ownership via the shop
+      const item = await Item.findById(itemId);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found." });
+      }
+
+      const shop = await Shop.findOne({ _id: item.shop, owner: req.user._id });
+      if (!shop) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to edit this item." });
+      }
+
+      // Update the item's properties
+      item.name = name;
+      item.description = description;
+      item.category = category;
+      item.price = price;
+      item.imageUrl = imageUrl;
+
+      await item.save();
+      res.json({ message: "Item updated successfully", item });
+    } catch (err) {
+      console.error("PUT /api/items/:itemId error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+app.delete(
+  "/api/items/:itemId",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { itemId } = req.params;
+
+      // Find the item to get its shop ID
+      const item = await Item.findById(itemId);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found." });
+      }
+
+      // Verify the seller owns the shop this item belongs to
+      const shop = await Shop.findOne({ _id: item.shop, owner: req.user._id });
+      if (!shop) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to delete this item." });
+      }
+
+      // If ownership is confirmed, delete the item
+      await Item.findByIdAndDelete(itemId);
+
+      res.json({ message: "Item deleted successfully" });
+    } catch (err) {
+      console.error("DELETE /api/items/:itemId error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+// ----------------- ORDER API (protected) -----------------
+
+// POST /api/orders => Place a new order
+app.post("/api/orders", ensureAuthenticated, async (req, res) => {
+  try {
+    const { deliveryAddress, paymentMethod } = req.body;
+    if (!deliveryAddress || !paymentMethod) {
+      return res
+        .status(400)
+        .json({ error: "Delivery address and payment method are required." });
+    }
+
+    const user = await User.findById(req.user._id).populate("cart.item");
+    if (!user || !user.cart || user.cart.length === 0) {
+      return res.status(400).json({ error: "Your cart is empty." });
+    }
+
+    // Assume all items are from the same shop for this version
+    const shopId = user.cart[0].item.shop;
+
+    // Calculate total bill and format items for the order
+    let totalBill = 0;
+    const orderItems = user.cart.map((cartItem) => {
+      const item = cartItem.item;
+      const price = item.price.perPiece || 0;
+      totalBill += price * cartItem.quantity;
+      return {
+        name: item.name,
+        price: price,
+        quantity: cartItem.quantity,
+      };
+    });
+
+    // Create a unique, human-readable order code
+    const orderCode = `ORD-${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 5)
+      .toUpperCase()}`;
+
+    const newOrder = new Order({
+      orderCode,
+      consumer: user._id,
+      shop: shopId,
+      items: orderItems,
+      totalBill,
+      deliveryAddress,
+      paymentDetails: {
+        method: paymentMethod,
+        status: "pending", // Or 'completed' if using a pre-paid method
+      },
+      status: "placed",
+    });
+
+    await newOrder.save();
+
+    // Clear the user's cart
+    user.cart = [];
+    await user.save();
+
+    res
+      .status(201)
+      .json({ message: "Order placed successfully!", order: newOrder });
+  } catch (err) {
+    console.error("POST /api/orders error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/seller/orders => Get all orders for the logged-in seller's shops
+app.get(
+  "/api/seller/orders",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      // 1. Find all shops owned by the seller
+      const sellerShops = await Shop.find({ owner: req.user._id }).select(
+        "_id"
+      );
+      const shopIds = sellerShops.map((shop) => shop._id);
+
+      // 2. Find all orders where the 'shop' field is in the seller's list of shop IDs
+      const orders = await Order.find({ shop: { $in: shopIds } })
+        .populate("consumer", "realName") // 3. Populate consumer's name
+        .sort({ createdAt: -1 }); // Show newest orders first
+
+      res.json({ orders });
+    } catch (err) {
+      console.error("GET /api/seller/orders error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+app.get(
+  "/api/seller/orders/:orderId",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+
+      // 1. Find the order and populate related data
+      const order = await Order.findById(orderId)
+        .populate("consumer", "realName email")
+        .populate("shop", "name");
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found." });
+      }
+
+      // 2. Verify the seller owns the shop associated with this order
+      // We need to find the original shop document to check the owner
+      const shop = await Shop.findById(order.shop._id);
+      if (shop.owner.toString() !== req.user._id.toString()) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to view this order." });
+      }
+
+      res.json({ order });
+    } catch (err) {
+      console.error("GET /api/seller/orders/:orderId error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+app.put(
+  "/api/seller/orders/:orderId/status",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { status } = req.body;
+
+      // Validate the new status
+      const validStatuses = [
+        "placed",
+        "confirmed",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ];
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status provided." });
+      }
+
+      // Find the order
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found." });
+      }
+
+      // Verify the seller owns the shop associated with this order
+      const shop = await Shop.findById(order.shop);
+      if (shop.owner.toString() !== req.user._id.toString()) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to update this order." });
+      }
+
+      // Update the status and save
+      order.status = status;
+      await order.save();
+
+      res.json({ message: `Order status updated to ${status}`, order });
+    } catch (err) {
+      console.error("PUT /api/seller/orders/:orderId/status error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+// GET /api/delivery-personnel => Get all users with the delivery_boy role
+app.get(
+  "/api/delivery-personnel",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const deliveryPersonnel = await User.find({
+        role: "delivery_boy",
+      }).select("realName");
+      res.json({ deliveryPersonnel });
+    } catch (err) {
+      console.error("GET /api/delivery-personnel error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PUT /api/seller/orders/:orderId/assign => Assign an order to a delivery person
+app.put(
+  "/api/seller/orders/:orderId/assign",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { deliveryBoyId } = req.body;
+
+      if (!deliveryBoyId) {
+        return res.status(400).json({ error: "Delivery Boy ID is required." });
+      }
+
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found." });
+      }
+
+      // Verify the seller owns the shop associated with this order
+      const shop = await Shop.findById(order.shop);
+      if (!shop || shop.owner.toString() !== req.user._id.toString()) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to update this order." });
+      }
+
+      // Check if the order is in a state that can be assigned
+      if (order.status !== "confirmed") {
+        return res
+          .status(400)
+          .json({
+            error: "Order must be 'confirmed' to be assigned for delivery.",
+          });
+      }
+
+      // Assign the delivery person and update the status to 'shipped'
+      order.deliveryBoy = deliveryBoyId;
+      order.status = "shipped";
+      await order.save();
+
+      const updatedOrder = await Order.findById(orderId)
+        .populate("consumer", "realName email")
+        .populate("shop", "name");
+
+      res.json({
+        message: "Order assigned and marked as shipped!",
+        order: updatedOrder,
+      });
+    } catch (err) {
+      console.error("PUT /api/seller/orders/:orderId/assign error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+app.put(
+  "/api/seller/orders/:orderId/status",
+  ensureAuthenticated,
+  ensureSeller,
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { status } = req.body;
+
+      // Validate the new status against the allowed values in your Order model
+      const validStatuses = [
+        "placed",
+        "confirmed",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ];
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status provided." });
+      }
+
+      // Find the order
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found." });
+      }
+
+      // Verify the seller owns the shop associated with this order
+      const shop = await Shop.findById(order.shop);
+      if (!shop || shop.owner.toString() !== req.user._id.toString()) {
+        return res
+          .status(403)
+          .json({ error: "You do not have permission to update this order." });
+      }
+
+      // Update the status and save the document
+      order.status = status;
+      await order.save();
+
+      // Populate the necessary fields again for the response
+      const updatedOrder = await Order.findById(orderId)
+        .populate("consumer", "realName email")
+        .populate("shop", "name");
+
+      res.json({
+        message: `Order status updated to ${status}`,
+        order: updatedOrder,
+      });
+    } catch (err) {
+      console.error("PUT /api/seller/orders/:orderId/status error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+app.get("/api/my-orders", ensureAuthenticated, async (req, res) => {
+  try {
+    const orders = await Order.find({ consumer: req.user._id })
+      .populate("shop", "name") // Get the shop's name
+      .sort({ createdAt: -1 }); // Show newest orders first
+
+    res.json({ orders });
+  } catch (err) {
+    console.error("GET /api/my-orders error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

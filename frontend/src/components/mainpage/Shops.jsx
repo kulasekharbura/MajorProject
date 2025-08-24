@@ -11,7 +11,6 @@ import {
   CardMedia,
   CardActionArea,
   Box,
-  Paper,
 } from "@mui/material";
 import LocationContext from "../../context/LocationContext";
 
@@ -88,7 +87,7 @@ export default function ShopsPage() {
   if (error) return <Typography color="error">{error}</Typography>;
 
   return (
-    <Paper elevation={2} sx={{ p: { xs: 2, md: 4 }, borderRadius: "12px" }}>
+    <Box>
       <Typography variant="h4" component="h2" gutterBottom fontWeight="bold">
         Shops in {effectiveLocation}
       </Typography>
@@ -108,13 +107,15 @@ export default function ShopsPage() {
                 }}
               >
                 <CardActionArea onClick={() => handleOpenShop(shop._id)}>
-                  {shop.imageUrl && (
+                  {shop.imageUrl ? (
                     <CardMedia
                       component="img"
                       height="140"
                       image={shop.imageUrl}
                       alt={shop.name}
                     />
+                  ) : (
+                    <Box sx={{ height: 140, backgroundColor: "grey.200" }} />
                   )}
                   <CardContent>
                     <Typography
@@ -135,6 +136,21 @@ export default function ShopsPage() {
                     >
                       {shop.locationName}
                     </Typography>
+                    {/* Display Owner Name and Email */}
+                    {shop.owner && (
+                      <Box sx={{ mt: 2, pt: 1, borderTop: "1px solid #eee" }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Owner: {shop.owner.realName}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          color="text.secondary"
+                        >
+                          Contact: {shop.owner.email}
+                        </Typography>
+                      </Box>
+                    )}
                   </CardContent>
                 </CardActionArea>
               </Card>
@@ -142,6 +158,6 @@ export default function ShopsPage() {
           ))}
         </Grid>
       )}
-    </Paper>
+    </Box>
   );
 }

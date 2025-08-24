@@ -19,6 +19,7 @@ const itemSchema = new Schema(
     },
     // To track if the item is in stock or not[cite: 63, 92].
     isAvailable: { type: Boolean, default: true },
+    imageUrl: { type: String },
   },
   { timestamps: true }
 );

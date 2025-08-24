@@ -35,6 +35,7 @@ export default function CheckoutPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
 
   useEffect(() => {
+    // Set the first address as the default selected address
     if (user?.addresses?.length > 0) {
       setSelectedAddress(user.addresses[0]);
     }
@@ -72,13 +73,7 @@ export default function CheckoutPage() {
         deliveryAddress: selectedAddress,
         paymentMethod,
       });
-
-      // ** THIS IS THE FIX **
-      // Dispatch an event to notify the Navbar that the cart is now empty.
-      window.dispatchEvent(
-        new CustomEvent("cartUpdated", { detail: { count: 0, items: [] } })
-      );
-
+      // Redirect to a success page with order details
       navigate(`/order-success/${res.data.order.orderCode}`);
     } catch (err) {
       setError(
